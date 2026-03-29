@@ -72,6 +72,7 @@ The project may be developed on a partially prepared machine, but v1 release val
 - Codex installed and authenticated
 - Claude Code installed and authenticated
 - OpenCode installed and authenticated when its live path is exercised
+- sufficient vendor credits/quota for any billed adapters exercised during release validation
 - a recent Chromium-compatible browser for E2E execution
 
 If a prerequisite is missing in a local development environment, the project may report the live path as blocked, but that does not satisfy the release gate.
@@ -87,6 +88,7 @@ Before release, the following evidence must exist and be inspectable:
 - latest live-test results for Codex, Claude, and OpenCode in prepared environments
 - manual validation checklist completion record
 - a short note confirming performance/recovery targets were exercised
+- the repo-local evidence bundle under `.omx/validation/`
 
 Evidence may be stored as CI artifacts, local logs, or structured validation notes, but it must be reproducible.
 
@@ -97,11 +99,13 @@ Release is blocked if any of the following are true:
 - normative docs disagree with shipped behavior
 - any required non-live test fails
 - browser E2E coverage is missing or failing
+- the dashboard shell is not usable until slow readiness probes complete
 - any built-in adapter remains probe-only inside release scope
 - live validation is unimplemented for any built-in adapter
 - blocked live tests are misreported as success
 - unresolved flaky failures exceed the team’s release threshold
 - known secrets leakage or misleading security claims remain open
+- docs and code disagree about how plan requests are represented distinct from plan mode
 - the architecture decision gate remains unresolved or is violated by later implementation work
 
 ## 7. Final sign-off checklist
@@ -117,3 +121,4 @@ Before release, confirm all items below:
 - logs and counters inspected for expected redaction and visibility
 - manual validation checklist complete
 - no open release-blocking defects remain
+- release evidence bundle archived under `.omx/validation/`

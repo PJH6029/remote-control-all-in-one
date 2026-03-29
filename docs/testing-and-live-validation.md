@@ -35,10 +35,10 @@ At minimum, the implementation must expose and keep working:
 ## 4. Baseline Reality Check
 
 At the time these docs were repaired, the repository baseline was:
-- `npm run check` passed
-- `npm run test:e2e` failed because no Playwright tests existed yet
-- live tests exited `2` for Codex and Claude because runtime integration was still placeholder-only
-- live tests exited `2` for OpenCode because the local machine lacked the binary
+- `npm run check` passes in the current workspace, but clean-tree lint can fail when `test-results/` is absent
+- `npm run test:e2e` fails because the dashboard stays on the shell/banner state long enough for the current assertions to time out
+- live tests currently pass for Codex, Claude, and OpenCode
+- the dashboard still needs faster first-paint / async-readiness behavior to meet the release target
 
 This baseline is acceptable only as a starting point. It is not acceptable for release.
 
@@ -105,7 +105,8 @@ Browser E2E tests must use Playwright and exercise the real daemon through brows
 
 Required scenarios:
 - bootstrap or login handoff
-- dashboard render with doctor information and adapter readiness
+- dashboard shell render before slow readiness calls finish
+- eventual adapter readiness / doctor hydration
 - create session from dashboard
 - workspace transcript streaming
 - pending approval resolution in UI
@@ -120,7 +121,7 @@ Required assertions:
 - optimistic user message appears and reconciles
 - no duplicate transcript entries after reconnect
 - pending-action cards disappear or change state after resolution
-- disabled or hidden controls match capability flags
+- disabled or hidden controls match capability flags, including any plan-request affordance that is not supported for a given adapter
 - visible focus states and keyboard navigation work for critical controls
 - required live regions announce pending state and session-status changes
 
@@ -137,15 +138,18 @@ Required entry points:
 
 - `0` success
 - `1` functional failure
-- `2` blocked by missing binary, missing auth, missing tmux when required, or another documented prerequisite
+- `2` blocked by missing binary, missing auth, missing tmux when required, insufficient vendor credits/quota, or another documented prerequisite
 
 Blocked is informative. It is never counted as success.
+
+Current passing live validation must remain green while the browser and clean-tree blockers are fixed.
 
 ### 8.2 Prepared-Environment Requirement
 
 A release candidate is not production-ready until each built-in adapter has at least one successful live validation in a **prepared environment** where:
 - the adapter binary is installed
 - the adapter is authenticated if required
+- the account has sufficient credits/quota when the vendor enforces it
 - tmux is available when the transport requires it
 - the working directory and permissions are configured as the adapter expects
 
@@ -193,12 +197,14 @@ Every adapter live test must execute these scenarios through public product surf
 ## 9. Observability And Performance Validation
 
 The verification suite or release checklist must collect evidence for:
-- warm startup to usable dashboard under target bounds
+- warm startup to usable dashboard shell under target bounds
+- slow probe hydration must not block initial usability
 - first visible session state under target bounds
 - reconnect to visible transcript under target bounds
 - replay correctness with at least 10,000 events per session
 - retained-history correctness with at least 100 active/recent sessions
 - redacted structured logs and required counters/metrics
+- release evidence captured under `.omx/validation/`
 
 ## 10. Required Fixtures And Helpers
 
@@ -222,12 +228,13 @@ Live tests may run in a dedicated environment instead of every pull request, but
 ## 12. Release Gate
 
 The project is not releasable until:
-- all non-live tests pass
+- all non-live tests pass on a clean checkout
 - browser E2E tests pass
 - prepared-environment live validation succeeds for each built-in adapter
 - blocked live tests are never reported as success
 - manual validation checklist is complete
 - unresolved flaky tests are documented and below the release threshold
+- release evidence is archived under `.omx/validation/`
 
 ## 13. Manual Validation Checklist
 
@@ -238,3 +245,4 @@ Before release, a human must confirm:
 - reconnect after refresh feels seamless
 - force terminate is safe and clear
 - capability-gated affordances (attach/open-directory) are either functional or honestly disabled
+- release evidence bundle is present under `.omx/validation/`

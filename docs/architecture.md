@@ -8,6 +8,7 @@
 - **Adapter isolation:** vendor-specific launch/config/transport logic stays inside adapters.
 - **Recoverability first:** browser refresh, daemon restart, and adapter restart are expected scenarios.
 - **Truthful capability reporting:** the system must never promise stronger transport, attach, or security guarantees than a given adapter actually provides.
+- **Fast shell first:** expensive readiness/probe work must not block the first usable dashboard or session shell.
 
 ## 2. Architecture Decision Gate
 
@@ -125,7 +126,14 @@ A normalized session id must remain stable across:
 
 Vendor session identifiers are adapter-owned opaque state and must never replace the normalized session id.
 
-### 6.3 Session Truth Model
+### 6.3 Plan Request vs Plan Mode
+
+- `mode: plan` is a session mode.
+- `pendingActions.type === 'plan'` represents a plan request.
+- The reducer, API, and UI must keep those concepts separate so a session can be in build mode while still holding a pending plan request, or be in plan mode without one.
+- Current code already models the distinction through separate mode state and pending-action event types (`plan.requested` / `plan.resolved`).
+
+### 6.4 Session Truth Model
 
 Each session has:
 - append-only normalized event log
@@ -247,6 +255,7 @@ The web server must:
 
 The UI must:
 - fetch initial state from HTTP
+- render a usable shell before slow readiness hydration completes
 - apply live updates from WebSocket replay/event messages
 - reconnect from the last known per-session sequence
 - render only normalized state, not terminal parsing heuristics

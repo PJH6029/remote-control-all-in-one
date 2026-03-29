@@ -82,7 +82,7 @@ Error:
 
 `SessionDetail` extends `SessionSummary` with:
 - `executionPolicy`
-- `capabilities`
+- `capabilities` (including distinct flags for plan mode support versus structured plan-request support)
 - `pendingActions`
 - `adapterState` (server-owned, browser-safe subset only when needed)
 
@@ -146,6 +146,9 @@ Returns:
 - capability metadata
 - adapter option schema
 - doctor summary when useful for the dashboard
+
+The dashboard may fetch this data after first paint; the shell itself should not depend on every probe result completing before it becomes usable.
+The server should avoid duplicate probe work across `/api/agents` and `/api/doctor` by reusing or caching the same readiness snapshot for a short interval.
 
 ### 7.3 `GET /api/sessions`
 Returns active and recent sessions.
@@ -223,6 +226,8 @@ Response data must include:
 - `restartRequired`
 - optional `reason`
 
+`mode: plan` is session mode only. It does not itself create or resolve a plan request.
+
 ### 7.9 `POST /api/sessions/:id/policy`
 Updates execution policy.
 
@@ -255,6 +260,8 @@ For questions:
 }
 ```
 
+Plan requests are resolved here when the pending action type is `plan`. This is distinct from the mode endpoint above: a session may be in build mode while a plan request is open, or in plan mode without a plan request.
+
 ### 7.11 `POST /api/sessions/:id/terminate`
 Requests graceful or forced termination.
 
@@ -277,6 +284,8 @@ Updates mutable settings and returns:
 
 ### 7.14 `GET /api/doctor`
 Returns full doctor report.
+
+The browser may fetch this lazily after first paint or when the doctor surface is opened, as long as the latest cached readiness state remains truthful.
 
 ## 8. WebSocket Contract
 

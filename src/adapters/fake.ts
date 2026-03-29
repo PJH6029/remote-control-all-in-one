@@ -20,6 +20,7 @@ export class FakeAdapter implements AgentAdapter {
       supportsExecutionPolicySwitch: true,
       supportsPendingApprovals: true,
       supportsQuestions: true,
+      supportsPlanRequests: true,
       supportsTmuxAttach: false,
       supportsStructuredEvents: true,
       supportsResume: true,

@@ -227,3 +227,13 @@ Required validation targets:
 - adapter option payloads
 
 Validation failures must be explicit, diagnosable, and recoverable where possible.
+
+## 15. Release Evidence And Repo-Local Artifacts
+
+Release evidence does not live in the daemon storage root. Use a repo-local evidence bundle under `.omx/validation/` for release notes, manual-checklist records, and preserved verification summaries unless a later release document says otherwise.
+
+Rules:
+- `.omx/validation/` is the default location for reproducible release evidence
+- Playwright traces/screenshots under `test-results/` are transient test artifacts, not durable product state
+- release evidence must be separate from runtime state under `~/.codex-everywhere/`
+- evidence records must be reproducible from the verified commands that produced them

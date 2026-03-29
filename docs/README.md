@@ -43,7 +43,9 @@ V1 is a **single-user**, **local-first** application that:
 - Normalized events and materialized snapshots are the source of truth; raw terminal output is supplemental.
 - Attach and open-directory affordances are capability-gated optional features, not universal guarantees.
 - Every built-in adapter must ship with a **minimum releasable transport** even if optional attach/tmux behavior differs by vendor.
+- Plan requests are distinct from plan mode: plan mode is a session mode, while plan requests travel through pending actions of type `plan`.
 - The current repository baseline keeps the Fastify + server-served modular SPA approach unless the architecture decision gate explicitly requires refactoring.
+- The implementation should land in small, reviewable commits and be pushed after each green milestone.
 - Release readiness is defined by passing evidence, not by partial feature presence.
 
 ## Deliverables Required By This Spec
@@ -64,7 +66,7 @@ The implementation must proceed in this order:
 2. lock behavior with tests and fixtures
 3. harden core runtime, storage, replay, and auth
 4. complete API, WebSocket, CLI, and UI
-5. deliver real adapters one by one
+5. stabilize built-in adapters and capability reporting against the repaired contract
 6. complete release validation and manual evidence collection
 
 No phase may claim completion until its verification gates pass.
@@ -80,12 +82,14 @@ The project is done for v1 only when all of the following are true:
 - all required tests from [testing-and-live-validation.md](./testing-and-live-validation.md) pass
 - each built-in adapter has at least one successful prepared-environment live validation path
 - release evidence includes automated results, recovery/performance evidence, and manual validation checklist completion
+- release evidence is stored in a reproducible repo-local bundle under `.omx/validation/`
 
 ## Release Semantics
 
 - A local developer machine may legitimately report a live test as **blocked** (`exit 2`) when a binary, auth state, or other documented prerequisite is missing.
 - A **release candidate** may only be called production-ready after live validation succeeds in a **prepared environment** where all built-in adapter prerequisites are satisfied.
 - Blocked local validation is informative; it is not a substitute for prepared-environment release evidence.
+- Current baseline note: Codex, Claude Code, and OpenCode live validation paths are already working and must stay working.
 
 ## External References
 

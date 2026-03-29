@@ -81,6 +81,7 @@ Required fields:
 - `supportsExecutionPolicySwitch`
 - `supportsPendingApprovals`
 - `supportsQuestions`
+- `supportsPlanRequests`
 - `supportsTmuxAttach`
 - `supportsStructuredEvents`
 - `supportsResume`
@@ -136,10 +137,11 @@ Rules:
 - normalized events must be safe to persist and replay
 - one vendor event must not map to conflicting public meanings
 - terminal output must never be the only source for approvals/questions/plans
+- plan requests are represented as `type: plan` pending actions plus the `plan.requested` / `plan.resolved` event pair; this is distinct from `mode: plan`
 
 ## 6. Pending Action Normalization
 
-All adapters must normalize pending actions to one shared shape with:
+Any adapter that surfaces structured pending actions must normalize them to one shared shape with:
 - id
 - session id
 - type (`approval`, `question`, `plan`)
@@ -149,10 +151,20 @@ All adapters must normalize pending actions to one shared shape with:
 - timestamps
 - optional vendor payload
 
-Resolution requirements:
+Capability rules:
+- adapters may support none, some, or all structured pending-action types
+- `supportsPendingApprovals`, `supportsQuestions`, and `supportsPlanRequests` are authoritative for UI/API behavior
+- unsupported pending-action types must not be implied by plan-mode support or other lifecycle features
+
+Resolution requirements for supported types:
 - approvals support allow and deny
 - questions support freeform text submission
 - plan requests support at least `accept` and `stay_in_plan`
+
+Plan requests must remain distinct from plan mode:
+- plan mode is a session mode exposed through `supportsPlanMode` and `planModeImplementation`
+- plan requests are a pending-action path surfaced through `type: plan` and the `plan.*` events
+- docs, doctor output, and UI controls must not conflate the two concepts
 
 ## 7. Mode Semantics
 
@@ -162,6 +174,7 @@ Rules:
 - native plan mode must be used when the vendor provides it
 - otherwise the adapter must emulate plan mode with the safest available policy plus explicit instructions/tool restrictions
 - the UI and doctor must report whether plan mode is native or emulated
+- plan mode support does not imply plan-request support; the latter is surfaced by pending-action/event behavior
 
 ## 8. Execution Policy Mapping
 
@@ -199,7 +212,7 @@ The Codex adapter must use current official Codex surfaces such as:
 - create and continue sessions through official Codex entry points
 - map normalized build/plan semantics truthfully onto Codex behavior
 - map normalized execution policy onto supported sandbox/approval controls
-- surface approvals/questions/plans using structured or safely parsed official outputs
+- surface structured approvals/questions/plan requests only when official outputs actually expose them; otherwise keep the corresponding capability flags false
 - persist enough adapter state to resume or reconcile sessions when supported
 
 ### 10.3 Required capabilities
@@ -207,6 +220,7 @@ The Codex adapter must use current official Codex surfaces such as:
 - supports plan mode
 - supports mode switch
 - supports execution policy switch
+- does **not** need to claim structured approval/question/plan-request support when the chosen transport does not expose it
 - supports resume when the chosen flow supports continuation
 - supports attach only if the chosen transport exposes a stable local target
 
@@ -225,14 +239,15 @@ The Claude adapter must use current official Claude Code surfaces such as:
 - create and continue sessions through supported Claude flows
 - surface approvals through official permission-related hooks
 - emulate plan mode truthfully when native mode is unavailable
-- inject answers to structured questions through supported paths rather than terminal keystroke emulation
+- inject answers to structured questions or plan requests only when the supported surface provides a truthful structured path
 - use lifecycle hooks for cleanup and reconciliation where appropriate
 
 ### 11.3 Required capabilities
 
 - supports plan mode (native or emulated)
 - supports pending approvals
-- supports questions when the chosen surface supports structured answer injection
+- supports questions only when the chosen surface supports structured answer injection
+- supports plan requests only when the chosen surface exposes a truthful structured plan-request path
 - supports attach only when the chosen transport exposes it truthfully
 
 ## 12. OpenCode Adapter
@@ -250,6 +265,7 @@ The OpenCode adapter must use current official OpenCode surfaces such as:
 - create and continue sessions through supported OpenCode transport
 - map normalized build/plan semantics truthfully
 - surface approvals/questions only when the chosen official surface actually exposes them
+- surface plan requests only when the chosen official surface actually exposes them
 - declare attach support only if the chosen transport provides a stable local attach target
 
 ### 12.3 Required capabilities
@@ -257,6 +273,7 @@ The OpenCode adapter must use current official OpenCode surfaces such as:
 - supports plan mode
 - supports resume when the chosen transport supports it
 - supports structured events via the chosen official surface
+- supports plan requests only when the chosen transport exposes them distinctly from plan mode
 - attach is optional and capability-gated
 
 ## 13. Doctor Requirements
@@ -296,6 +313,7 @@ A built-in adapter is done only when all of the following are true:
 - it can create a session from the dashboard
 - it can stream normalized output into the workspace
 - it can receive follow-up user input
+- it distinguishes plan mode from plan requests in UI/API/doctor output
 - it can resolve any supported approval/question/plan flows through normalized pending actions
 - it can switch mode between `build` and `plan` truthfully
 - it can terminate cleanly or report force-terminate behavior truthfully

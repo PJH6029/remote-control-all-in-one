@@ -40,6 +40,7 @@ export const adapterCapabilitySchema = z.object({
   supportsExecutionPolicySwitch: z.boolean(),
   supportsPendingApprovals: z.boolean(),
   supportsQuestions: z.boolean(),
+  supportsPlanRequests: z.boolean(),
   supportsTmuxAttach: z.boolean(),
   supportsStructuredEvents: z.boolean(),
   supportsResume: z.boolean(),

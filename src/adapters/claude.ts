@@ -266,6 +266,7 @@ export class ClaudeAdapter implements AgentAdapter {
       supportsExecutionPolicySwitch: true,
       supportsPendingApprovals: true,
       supportsQuestions: false,
+      supportsPlanRequests: false,
       supportsTmuxAttach: false,
       supportsStructuredEvents: true,
       supportsResume: true,

@@ -259,6 +259,7 @@ export class CodexAdapter implements AgentAdapter {
       supportsExecutionPolicySwitch: true,
       supportsPendingApprovals: false,
       supportsQuestions: false,
+      supportsPlanRequests: false,
       supportsTmuxAttach: false,
       supportsStructuredEvents: true,
       supportsResume: true,

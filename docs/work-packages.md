@@ -121,47 +121,50 @@ Exit criteria:
 ## 9. Work Package G — Codex Adapter
 
 Scope:
-- implement minimum releasable Codex transport using current official surfaces
-- support create/resume/message/mode/policy/pending/terminate flows
-- add truthful capability reporting and live-test coverage
+- stabilize the existing Codex transport against the repaired docs contract
+- keep create/resume/message/mode/policy/pending/terminate flows truthful
+- align capability reporting, plan-mode semantics, and doctor output with the documented contract
+- keep live-test coverage green while docs and UI truth are repaired
 
 Deliverables:
-- production Codex adapter
-- Codex live validation path
+- production-truthful Codex adapter contract
+- Codex live validation path that remains green
 
 Exit criteria:
-- Codex is no longer probe-only
-- prepared-environment live validation can succeed
+- Codex capability reporting matches docs/UI/API behavior
+- prepared-environment live validation remains successful
 
 ## 10. Work Package H — Claude Adapter
 
 Scope:
-- implement minimum releasable Claude transport using official hooks/settings surfaces
+- stabilize the existing Claude transport against the repaired docs contract
 - emulate plan mode truthfully when native mode is unavailable
-- add truthful capability reporting and live-test coverage
+- keep approval resolution, resume behavior, and capability reporting truthful
+- keep live-test coverage green while docs and UI truth are repaired
 
 Deliverables:
-- production Claude adapter
-- Claude live validation path
+- production-truthful Claude adapter contract
+- Claude live validation path that remains green
 
 Exit criteria:
-- Claude is no longer probe-only
-- prepared-environment live validation can succeed
+- Claude capability reporting matches docs/UI/API behavior
+- prepared-environment live validation remains successful
 
 ## 11. Work Package I — OpenCode Adapter
 
 Scope:
-- implement minimum releasable OpenCode transport using official server/API surfaces
-- add prerequisite checks and honest capability reporting
-- add live validation path for prepared environments
+- stabilize the existing OpenCode transport against the repaired docs contract
+- keep prerequisite checks and honest capability reporting aligned with reality
+- preserve the live validation path for prepared environments
+- keep live-test coverage green while docs and UI truth are repaired
 
 Deliverables:
-- production OpenCode adapter
-- OpenCode live validation path
+- production-truthful OpenCode adapter contract
+- OpenCode live validation path that remains green
 
 Exit criteria:
-- OpenCode is no longer probe-only
-- prepared-environment live validation can succeed when prerequisites are installed
+- OpenCode capability reporting matches docs/UI/API behavior
+- prepared-environment live validation remains successful when prerequisites are installed
 
 ## 12. Work Package J — Hardening
 
@@ -192,6 +195,7 @@ Shared rules:
 - all lanes depend on one reducer/materializer truth model
 - docs are frozen before broad parallel implementation begins
 - optional affordances such as attach/open-directory must not force cross-lane blockers
+- teams should use small, reviewable commits and push after each green milestone so later lanes inherit a stable base
 
 ## 14. Final Release Checklist
 
@@ -220,6 +224,8 @@ The release checklist is complete only when all items below are checked:
 - [ ] doctor output surfaces missing prerequisites clearly
 - [ ] structured logs and required counters/metrics exist and redact secrets
 - [ ] pruning/retention behavior is implemented and observable
+- [ ] release evidence is archived under `.omx/validation/`
+- [ ] modular commits were made at milestone boundaries and pushed after each green gate
 
 ### Human validation
 - [ ] manual checklist from `testing-and-live-validation.md` is complete

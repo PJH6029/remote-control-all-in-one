@@ -59,6 +59,7 @@ Required modes:
 - `plan`
 
 `plan` means analysis-first behavior with no write-like actions unless the user explicitly returns to build mode.
+This is distinct from a plan request: a plan request is a pending action of type `plan`, not the session mode itself.
 
 ### 6.3 Execution Policy
 
@@ -86,6 +87,7 @@ The terminal mirror is supplemental diagnostics. It is never the source of truth
 ### 7.1 Dashboard
 
 Required capabilities:
+- render a usable shell before slower readiness hydration completes
 - list active and recent sessions
 - create a new session
 - search/filter by status, agent, directory, or title
@@ -125,7 +127,7 @@ Required controls:
 - send message
 - switch mode
 - update execution policy
-- resolve approvals/questions/plans
+- resolve any supported approvals/questions/plans
 - terminate
 - force terminate when graceful terminate times out or fails
 - open working directory when the platform/runtime can support it safely
@@ -146,6 +148,7 @@ Required transcript behavior:
 - clear separation between user messages, commentary, final answers, notices, terminal output, and errors
 - stable rendering after refresh
 - no duplicate events after reconnect
+- readiness information may hydrate after the initial shell paint; the shell itself must not wait on full probe completion
 
 ### 7.3 Settings And Doctor
 
@@ -225,6 +228,7 @@ Acceptance criteria:
 Acceptance criteria:
 - pending actions do not rely on terminal scraping
 - resolution survives refresh and replay
+- surfaces must distinguish plan mode from plan requests
 
 ### 8.5 Switch Mode Or Policy
 1. user changes mode or execution policy
@@ -281,7 +285,8 @@ Acceptance criteria:
 
 ### 9.4 Performance
 
-- warm dashboard load under 2 seconds
+- warm dashboard shell load under 2 seconds
+- readiness hydration may continue after first paint
 - session creation to first visible state under 2 seconds when the adapter is healthy
 - reconnect to visible transcript under 2 seconds on a local machine
 - responsive rendering with at least 10,000 persisted events in session history
@@ -301,3 +306,4 @@ Acceptance criteria:
 - a user can inspect adapter readiness before session creation
 - a user can complete approval, question, plan, mode/policy, recovery, and termination flows through the UI/API contract
 - the application can be validated end to end through the automated and manual gates defined in `testing-and-live-validation.md`
+- plan requests remain a distinct user-visible concept from plan mode in every surface
