@@ -1,6 +1,6 @@
 import { createId } from '../shared/ids';
 import type { AdapterCapability, AdapterProbeResult, CreateSessionInput, PendingAction } from '../shared/contracts';
-import type { AgentAdapter, AdapterCreateContext, AdapterSessionHandle, PendingResolution } from './base';
+import type { AgentAdapter, AdapterCreateContext, AdapterResumeInput, AdapterSessionHandle, PendingResolution } from './base';
 
 function delayed(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,6 +74,19 @@ export class FakeAdapter implements AgentAdapter {
         });
       },
     };
+  }
+
+  async resumeSession(input: AdapterResumeInput, context: AdapterCreateContext): Promise<AdapterSessionHandle> {
+    return this.createSession({
+      agentId: input.session.agentId,
+      cwd: input.session.cwd,
+      title: input.session.title,
+      initialPrompt: 'Recovered fake session.',
+      mode: input.session.mode,
+      executionPolicy: input.session.executionPolicy,
+      extraDirectories: [],
+      adapterOptions: {},
+    }, context);
   }
 
   private async handleMessage(text: string, context: AdapterCreateContext): Promise<void> {

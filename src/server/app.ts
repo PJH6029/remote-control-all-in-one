@@ -31,26 +31,34 @@ export interface AppServices {
   uptimeStartedAt: number;
 }
 
-function mergeSettings(current: AppConfig, patch: Record<string, unknown>): { config: AppConfig; restartRequired: boolean } {
+function mergeSettings(current: AppConfig, patch: Record<string, unknown>): { config: AppConfig; restartRequired: boolean; reasons: string[] } {
   const next = structuredClone(current);
   let restartRequired = false;
+  const reasons = new Set<string>();
 
   if (patch.server && typeof patch.server === 'object') {
     const serverPatch = patch.server as Record<string, unknown>;
     if (typeof serverPatch.host === 'string' && serverPatch.host !== next.server.host) {
       next.server.host = serverPatch.host;
       restartRequired = true;
+      reasons.add('server.host');
     }
     if (typeof serverPatch.port === 'number' && serverPatch.port !== next.server.port) {
       next.server.port = serverPatch.port;
       restartRequired = true;
+      reasons.add('server.port');
     }
     if (typeof serverPatch.openBrowser === 'boolean') next.server.openBrowser = serverPatch.openBrowser;
     if ((serverPatch.authMode === 'local-session' || serverPatch.authMode === 'password') && serverPatch.authMode !== next.server.authMode) {
       next.server.authMode = serverPatch.authMode;
       restartRequired = true;
+      reasons.add('server.authMode');
     }
-    if (typeof serverPatch.passwordHash === 'string' || serverPatch.passwordHash === null) next.server.passwordHash = serverPatch.passwordHash as string | null;
+    if ((typeof serverPatch.passwordHash === 'string' || serverPatch.passwordHash === null) && serverPatch.passwordHash !== next.server.passwordHash) {
+      next.server.passwordHash = serverPatch.passwordHash as string | null;
+      restartRequired = true;
+      reasons.add('server.passwordHash');
+    }
   }
 
   if (patch.ui && typeof patch.ui === 'object') {
@@ -66,7 +74,7 @@ function mergeSettings(current: AppConfig, patch: Record<string, unknown>): { co
     if (typeof retentionPatch.pruneEventsAfterDays === 'number') next.retention.pruneEventsAfterDays = retentionPatch.pruneEventsAfterDays;
   }
 
-  return { config: next, restartRequired };
+  return { config: next, restartRequired, reasons: [...reasons] };
 }
 
 async function sendIndex(reply: any): Promise<void> {
@@ -142,10 +150,18 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
 
   app.get('/api/sessions', async (request, reply) => {
     auth.requireAuth(request, reply);
-    const query = request.query as { status?: string; agentId?: string; limit?: string };
+    const query = request.query as { status?: string; agentId?: string; limit?: string; search?: string };
     let items = await sessionManager.listSessions();
     if (query.status) items = items.filter((item) => item.status === query.status);
     if (query.agentId) items = items.filter((item) => item.agentId === query.agentId);
+    if (query.search) {
+      const search = query.search.toLowerCase();
+      items = items.filter((item) =>
+        item.title.toLowerCase().includes(search)
+        || item.cwd.toLowerCase().includes(search)
+        || item.agentId.toLowerCase().includes(search),
+      );
+    }
     const limit = query.limit ? Number(query.limit) : undefined;
     if (limit) items = items.slice(0, limit);
     reply.send(successEnvelope({ items, nextCursor: null }));
@@ -153,7 +169,8 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
 
   app.post('/api/sessions', async (request, reply) => {
     auth.requireAuth(request, reply, { stateChanging: true });
-    const detail = await sessionManager.createSession(createSessionSchema.parse(request.body ?? {}));
+    const idempotencyKey = typeof request.headers['x-idempotency-key'] === 'string' ? request.headers['x-idempotency-key'] : undefined;
+    const detail = await sessionManager.createSession(createSessionSchema.parse(request.body ?? {}), idempotencyKey);
     reply.send(successEnvelope(detail));
   });
 
@@ -222,7 +239,7 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
     const merged = mergeSettings(config, (request.body ?? {}) as Record<string, unknown>);
     config = await saveConfig(merged.config, paths);
     auth.updateConfig(config);
-    reply.send(successEnvelope({ settings: redactValue(config), restartRequired: merged.restartRequired }));
+    reply.send(successEnvelope({ settings: redactValue(config), restartRequired: merged.restartRequired, reasons: merged.reasons }));
   });
 
   app.get('/api/doctor', async (request, reply) => {
@@ -230,10 +247,10 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
     reply.send(successEnvelope(await buildDoctorReport(config, sessionManager.listAdapters(), paths)));
   });
 
-  app.get('/api/events', { websocket: true }, (connection, request) => {
+  app.get('/api/events', { websocket: true }, (socket, request) => {
     if (!auth.isAuthenticated(request)) {
-      connection.socket.send(JSON.stringify({ type: 'error', code: 'unauthorized', message: 'Authenticate before opening the event stream.' }));
-      connection.socket.close();
+      socket.send(JSON.stringify({ type: 'error', code: 'unauthorized', message: 'Authenticate before opening the event stream.' }));
+      socket.close();
       return;
     }
 
@@ -243,25 +260,25 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
       for (const summary of summaries) {
         if (sessionIds && !sessionIds.has(summary.id)) continue;
         const detail = sessionManager.getSession(summary.id);
-        connection.socket.send(JSON.stringify({ type: 'session.snapshot', session: detail }));
+        socket.send(JSON.stringify({ type: 'session.snapshot', session: detail }));
         const events = await sessionManager.getEvents(summary.id, after[summary.id] ?? 0, config.ui.eventPageSize);
         for (const event of events) {
-          connection.socket.send(JSON.stringify({ type: 'event', event }));
+          socket.send(JSON.stringify({ type: 'event', event }));
         }
       }
     };
 
     const unsubscribe = sessionManager.subscribe((event) => {
       if (sessionIds && !sessionIds.has(event.sessionId)) return;
-      connection.socket.send(JSON.stringify({ type: 'event', event }));
+      socket.send(JSON.stringify({ type: 'event', event }));
     });
 
     void sendSnapshotBundle();
     const heartbeat = setInterval(() => {
-      connection.socket.send(JSON.stringify({ type: 'heartbeat', serverTime: new Date().toISOString() }));
+      socket.send(JSON.stringify({ type: 'heartbeat', serverTime: new Date().toISOString() }));
     }, 15_000);
 
-    connection.socket.on('message', (raw: Buffer | string) => {
+    socket.on('message', (raw: Buffer | string) => {
       try {
         const message = JSON.parse(String(raw)) as { type?: string; sessionIds?: string[]; after?: Record<string, number> };
         if (message.type === 'subscribe') {
@@ -269,11 +286,11 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
           void sendSnapshotBundle(message.after ?? {});
         }
       } catch {
-        connection.socket.send(JSON.stringify({ type: 'error', code: 'invalid_subscription', message: 'Requested session is not available.' }));
+        socket.send(JSON.stringify({ type: 'error', code: 'invalid_subscription', message: 'Requested session is not available.' }));
       }
     });
 
-    connection.socket.on('close', () => {
+    socket.on('close', () => {
       clearInterval(heartbeat);
       unsubscribe();
     });

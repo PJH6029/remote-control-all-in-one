@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -80,7 +81,7 @@ export async function readJsonIfExists<T>(filePath: string): Promise<T | undefin
 }
 
 export async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
-  const tempFile = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  const tempFile = `${filePath}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`;
   await writeFile(tempFile, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
   await rename(tempFile, filePath);
 }

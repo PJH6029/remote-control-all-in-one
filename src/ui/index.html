@@ -12,11 +12,14 @@
         <h1>Remote Control All-in-One</h1>
         <p class="subtitle">Local-first control plane for CLI coding agents</p>
       </div>
-      <nav class="nav">
-        <a href="#/dashboard">Dashboard</a>
-        <a href="#/settings">Settings</a>
-        <a href="#/doctor">Doctor</a>
-      </nav>
+      <div class="topbar-meta">
+        <div id="connection-pill" class="pill">Connecting</div>
+        <nav class="nav" aria-label="Primary">
+          <a href="#/dashboard">Dashboard</a>
+          <a href="#/settings">Settings</a>
+          <a href="#/doctor">Doctor</a>
+        </nav>
+      </div>
     </header>
 
     <main class="layout">
@@ -26,6 +29,8 @@
       <section id="settings-view" class="panel hidden"></section>
       <section id="doctor-view" class="panel hidden"></section>
     </main>
+
+    <div id="live-region" class="sr-only" aria-live="polite"></div>
 
     <script type="module" src="/ui/app.js"></script>
   </body>
