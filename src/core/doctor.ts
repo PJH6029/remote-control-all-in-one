@@ -3,7 +3,7 @@ import { access } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import type { AgentAdapter } from '../adapters/base';
-import { type AppConfig, type DoctorReport } from '../shared/contracts';
+import { type AdapterProbeResult, type AppConfig, type DoctorReport } from '../shared/contracts';
 import { persistDoctorReport, appendProbeLog } from './event-store';
 import type { StoragePaths } from './storage';
 
@@ -15,7 +15,12 @@ function combineStatus(values: Array<'healthy' | 'warning' | 'blocked'>): 'healt
   return 'healthy';
 }
 
-export async function buildDoctorReport(config: AppConfig, adapters: AgentAdapter[], paths: StoragePaths): Promise<DoctorReport> {
+export async function buildDoctorReport(
+  config: AppConfig,
+  adapters: AgentAdapter[],
+  paths: StoragePaths,
+  precomputedAgentReports?: AdapterProbeResult[],
+): Promise<DoctorReport> {
   const checks: DoctorReport['checks'] = [];
 
   const tmuxCheck = await execFileAsync('which', ['tmux']).then(
@@ -39,7 +44,7 @@ export async function buildDoctorReport(config: AppConfig, adapters: AgentAdapte
     details: config.server.authMode === 'password' && !config.server.passwordHash ? ['Set server.passwordHash to enable password login.'] : [],
   });
 
-  const agentReports = await Promise.all(adapters.map((adapter) => adapter.probe()));
+  const agentReports = precomputedAgentReports ?? await Promise.all(adapters.map((adapter) => adapter.probe()));
   for (const report of agentReports) {
     await appendProbeLog(paths, report);
   }

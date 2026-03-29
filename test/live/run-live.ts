@@ -104,7 +104,22 @@ function isBlockedError(error: unknown): boolean {
     || text.includes('not implemented')
     || text.includes('login')
     || text.includes('auth')
-    || text.includes('credential');
+    || text.includes('credential')
+    || text.includes('credit balance')
+    || text.includes('quota')
+    || text.includes('billing');
+}
+
+function blockedMessageFromHistory(items: Array<{ type: string; data: Record<string, unknown> }>): string | null {
+  for (const event of items) {
+    if (event.type === 'session.error' && isBlockedError({ message: event.data.message })) {
+      return String(event.data.message);
+    }
+    if ((event.type === 'assistant.final' || event.type === 'assistant.delta') && isBlockedError({ message: event.data.text ?? event.data.textDelta })) {
+      return String(event.data.text ?? event.data.textDelta);
+    }
+  }
+  return null;
 }
 
 async function createWorkspace() {
@@ -176,6 +191,8 @@ async function main() {
     const sessionId = created.id;
     await waitFor(async () => {
       const { detail, history } = await pollSession(client, sessionId);
+      const blockedMessage = blockedMessageFromHistory(history.items);
+      if (blockedMessage) blocked(blockedMessage);
       const errorEvent = history.items.find((event: any) => event.type === 'session.error');
       if (errorEvent) {
         if (isBlockedError({ message: errorEvent.data.message })) blocked(errorEvent.data.message);
@@ -201,6 +218,8 @@ async function main() {
 
     await waitFor(async () => {
       const { detail, history } = await pollSession(client, sessionId);
+      const blockedMessage = blockedMessageFromHistory(history.items);
+      if (blockedMessage) blocked(blockedMessage);
       const openApproval = detail.pendingActions.find((pending: any) => pending.status === 'open' && pending.type === 'approval');
       if (openApproval) {
         await client.request(`/api/sessions/${sessionId}/pending/${openApproval.id}/resolve`, {

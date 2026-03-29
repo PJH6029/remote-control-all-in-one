@@ -11,6 +11,9 @@ const state = {
   socket: null,
   connection: 'connecting',
   reconnectTimer: null,
+  readinessLoading: false,
+  sessionLoading: new Set(),
+  sessionErrors: new Map(),
   filters: {
     search: '',
     status: 'all',
@@ -95,9 +98,26 @@ function upsertEvent(event) {
 }
 
 function adapterChoices() {
+  if (!state.agents.length) {
+    return '<option value="">Loading adapters…</option>';
+  }
   return state.agents
     .map((agent) => `<option value="${escapeHtml(agent.probe.agentId)}">${escapeHtml(agent.capabilities.displayName)} — ${escapeHtml(agent.probe.status)}</option>`)
     .join('');
+}
+
+function queueSessionRefresh(sessionId) {
+  if (!sessionId || state.sessionLoading.has(sessionId)) return;
+  state.sessionLoading.add(sessionId);
+  state.sessionErrors.delete(sessionId);
+  void refreshSession(sessionId)
+    .catch((error) => {
+      state.sessionErrors.set(sessionId, error instanceof Error ? error.message : String(error));
+    })
+    .finally(() => {
+      state.sessionLoading.delete(sessionId);
+      rerender();
+    });
 }
 
 function filteredSessions() {
@@ -154,6 +174,9 @@ function renderLogin() {
 function renderDashboard() {
   show('dashboard');
   const sessions = filteredSessions();
+  const readinessMessage = state.readinessLoading && !state.agents.length
+    ? '<p class="muted">Loading adapter readiness…</p>'
+    : '';
   views.dashboard.innerHTML = `
     <section class="card info-strip">
       <div>
@@ -195,6 +218,7 @@ function renderDashboard() {
               <input name="extraDirectories" placeholder="/path/one,/path/two" />
             </label>
           </div>
+          ${readinessMessage}
           <button class="primary" type="submit">Create session</button>
         </form>
       </section>
@@ -288,7 +312,16 @@ function renderDashboard() {
 function renderWorkspace(sessionId) {
   const detail = state.sessionDetails.get(sessionId);
   if (!detail) {
-    location.hash = '#/dashboard';
+    queueSessionRefresh(sessionId);
+    show('workspace');
+    const error = state.sessionErrors.get(sessionId);
+    views.workspace.innerHTML = `
+      <section class="card">
+        <h2>${error ? 'Failed to load session' : 'Loading session…'}</h2>
+        <p class="muted">${escapeHtml(error || 'Rehydrating transcript and session state.')}</p>
+        <a class="link-button" href="#/dashboard">Back to dashboard</a>
+      </section>
+    `;
     return;
   }
   show('workspace');
@@ -569,17 +602,18 @@ async function refreshSessions() {
 }
 
 async function refreshGlobalData() {
-  const [agents, doctor, settings, health] = await Promise.all([
+  state.readinessLoading = true;
+  const [agents, settings, health] = await Promise.all([
     api('/api/agents'),
-    api('/api/doctor'),
     api('/api/settings'),
     api('/api/health'),
   ]);
   state.agents = agents.agents;
-  state.doctor = doctor;
+  state.doctor = agents.doctor;
   state.settings = settings;
   state.health = health;
   await refreshSessions();
+  state.readinessLoading = false;
 }
 
 function connectSocket() {
@@ -642,9 +676,19 @@ async function bootstrap() {
     renderLogin();
     return;
   }
-  await refreshGlobalData();
-  connectSocket();
   rerender();
+  connectSocket();
+  const route = currentRoute();
+  if (route.route === 'session' && route.id) queueSessionRefresh(route.id);
+  void refreshGlobalData()
+    .catch((error) => {
+      console.error(error);
+      announce(`Failed to refresh application data: ${error.message}`);
+    })
+    .finally(() => {
+      state.readinessLoading = false;
+      rerender();
+    });
 }
 
 window.addEventListener('hashchange', rerender);

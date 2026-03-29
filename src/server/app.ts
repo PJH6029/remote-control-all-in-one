@@ -95,6 +95,36 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
   await app.register(cookie, { secret: 'rcaio-dev-secret' });
   await app.register(websocket);
 
+  let readinessPromise: Promise<{ agents: Array<{ probe: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['probe']>>; capabilities: ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['capability']>; optionSchema: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['optionSchema']>> }>; doctor: Awaited<ReturnType<typeof buildDoctorReport>> }> | null = null;
+  let readinessCache: { expiresAt: number; data: { agents: Array<{ probe: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['probe']>>; capabilities: ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['capability']>; optionSchema: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['optionSchema']>> }>; doctor: Awaited<ReturnType<typeof buildDoctorReport>> } } | null = null;
+
+  async function loadReadiness(force = false) {
+    const now = Date.now();
+    if (!force && readinessCache && readinessCache.expiresAt > now) return readinessCache.data;
+    if (!force && readinessPromise) return readinessPromise;
+
+    const adapters = sessionManager.listAdapters();
+    readinessPromise = (async () => {
+      const agentReports = await Promise.all(adapters.map((adapter) => adapter.probe()));
+      const reportById = new Map(agentReports.map((report) => [report.agentId, report]));
+      const doctor = await buildDoctorReport(config, adapters, paths, agentReports);
+      const agents = await Promise.all(adapters.map(async (adapter) => ({
+        probe: reportById.get(adapter.id) ?? await adapter.probe(),
+        capabilities: adapter.capability(),
+        optionSchema: await adapter.optionSchema(),
+      })));
+      const data = { agents, doctor };
+      readinessCache = { expiresAt: Date.now() + 5_000, data };
+      return data;
+    })();
+
+    try {
+      return await readinessPromise;
+    } finally {
+      readinessPromise = null;
+    }
+  }
+
   app.setErrorHandler((error, _request, reply) => {
     const apiError = error instanceof ApiError
       ? error
@@ -139,13 +169,7 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
 
   app.get('/api/agents', async (request, reply) => {
     auth.requireAuth(request, reply);
-    const doctor = await buildDoctorReport(config, sessionManager.listAdapters(), paths);
-    const agents = await Promise.all(sessionManager.listAdapters().map(async (adapter) => ({
-      probe: await adapter.probe(),
-      capabilities: adapter.capability(),
-      optionSchema: await adapter.optionSchema(),
-    })));
-    reply.send(successEnvelope({ agents, doctor }));
+    reply.send(successEnvelope(await loadReadiness()));
   });
 
   app.get('/api/sessions', async (request, reply) => {
@@ -239,12 +263,13 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
     const merged = mergeSettings(config, (request.body ?? {}) as Record<string, unknown>);
     config = await saveConfig(merged.config, paths);
     auth.updateConfig(config);
+    readinessCache = null;
     reply.send(successEnvelope({ settings: redactValue(config), restartRequired: merged.restartRequired, reasons: merged.reasons }));
   });
 
   app.get('/api/doctor', async (request, reply) => {
     auth.requireAuth(request, reply);
-    reply.send(successEnvelope(await buildDoctorReport(config, sessionManager.listAdapters(), paths)));
+    reply.send(successEnvelope((await loadReadiness()).doctor));
   });
 
   app.get('/api/events', { websocket: true }, (socket, request) => {

@@ -8,7 +8,7 @@
     "build": "tsc --noEmit",
     "dev": "tsx src/cli/index.ts internal-daemon",
     "start": "tsx src/cli/index.ts internal-daemon",
-    "lint": "eslint . --ext .ts,.js",
+    "lint": "eslint src test scripts eslint.config.js playwright.config.ts vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:unit && npm run test:int",
     "test:unit": "vitest run test/unit",
