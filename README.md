@@ -155,6 +155,7 @@ Recommended order:
 - The project is single-user and local-first.
 - The daemon binds to `127.0.0.1` by default.
 - Non-loopback hosting requires password auth.
+- The Create session form now defaults the working directory to the daemon process cwd.
 - Session working directories must exist on the same machine that is running the daemon.
 - Plan mode is distinct from plan requests; see `docs/agent-adapters.md` and `docs/api.md`.
 - For release readiness, prepared-environment live validation is still required even if a local machine reports a documented blocked condition.

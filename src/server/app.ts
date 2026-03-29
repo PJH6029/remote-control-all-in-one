@@ -174,6 +174,7 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
       daemon: {
         pid: process.pid,
         bind: `${config.server.host}:${config.server.port}`,
+        cwd: process.cwd(),
         uptimeSeconds: Math.floor((Date.now() - uptimeStartedAt) / 1000),
       },
     }));

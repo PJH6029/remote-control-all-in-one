@@ -1,4 +1,5 @@
 import { test, expect } from 'playwright/test';
+import process from 'node:process';
 
 import type { RunningTestServer } from '../helpers/test-server';
 import { startTestServer } from '../helpers/test-server';
@@ -60,4 +61,9 @@ test('dashboard shows a visible error when session creation uses a missing direc
   await page.getByLabel('Working directory').fill('/definitely/missing/directory');
   await page.getByRole('button', { name: 'Create session' }).click();
   await expect(page.getByRole('alert')).toContainText('Working directory does not exist');
+});
+
+test('dashboard defaults the working directory to the daemon cwd', async ({ page }) => {
+  await page.goto(server.url);
+  await expect(page.getByLabel('Working directory')).toHaveValue(process.cwd());
 });

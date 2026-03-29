@@ -107,6 +107,12 @@ function adapterChoices() {
     .join('');
 }
 
+function defaultWorkingDirectory() {
+  if (state.health?.daemon?.cwd) return state.health.daemon.cwd;
+  if (state.sessions[0]?.cwd) return state.sessions[0].cwd;
+  return '';
+}
+
 function queueSessionRefresh(sessionId) {
   if (!sessionId || state.sessionLoading.has(sessionId)) return;
   state.sessionLoading.add(sessionId);
@@ -201,7 +207,7 @@ function renderDashboard() {
           <label>Agent
             <select name="agentId">${adapterChoices()}</select>
           </label>
-          <label>Working directory <input name="cwd" value="${escapeHtml(location.pathname)}" required /></label>
+          <label>Working directory <input name="cwd" value="${escapeHtml(defaultWorkingDirectory())}" required /></label>
           <label>Optional title <input name="title" /></label>
           <label>Initial prompt <textarea name="initialPrompt" rows="4" required>Inspect the repository and summarize the next steps.</textarea></label>
           <div class="grid-3">
