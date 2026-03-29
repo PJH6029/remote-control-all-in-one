@@ -1,0 +1,2 @@
+- Use `uv` for this project. Create a new one.
+- Use `docs/` as a project goal. Alaways refer this directory for the task.
