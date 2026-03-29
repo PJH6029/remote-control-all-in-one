@@ -53,3 +53,11 @@ test('settings and doctor routes render on direct load before hydration complete
   await page.goto(`${server.url}#/doctor`);
   await expect(page.getByRole('heading', { name: 'Doctor' })).toBeVisible();
 });
+
+test('dashboard shows a visible error when session creation uses a missing directory', async ({ page }) => {
+  await page.goto(server.url);
+  await page.getByLabel('Agent').selectOption('codex');
+  await page.getByLabel('Working directory').fill('/definitely/missing/directory');
+  await page.getByRole('button', { name: 'Create session' }).click();
+  await expect(page.getByRole('alert')).toContainText('Working directory does not exist');
+});

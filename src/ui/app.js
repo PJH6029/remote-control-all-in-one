@@ -12,6 +12,7 @@ const state = {
   connection: 'connecting',
   reconnectTimer: null,
   readinessLoading: false,
+  createSessionError: '',
   sessionLoading: new Set(),
   sessionErrors: new Map(),
   filters: {
@@ -177,6 +178,10 @@ function renderDashboard() {
   const readinessMessage = state.readinessLoading && !state.agents.length
     ? '<p class="muted">Loading adapter readiness…</p>'
     : '';
+  const createDisabled = !state.agents.length;
+  const createError = state.createSessionError
+    ? `<p class="error-text" role="alert">${escapeHtml(state.createSessionError)}</p>`
+    : '';
   views.dashboard.innerHTML = `
     <section class="card info-strip">
       <div>
@@ -218,8 +223,9 @@ function renderDashboard() {
               <input name="extraDirectories" placeholder="/path/one,/path/two" />
             </label>
           </div>
+          ${createError}
           ${readinessMessage}
-          <button class="primary" type="submit">Create session</button>
+          <button class="primary" type="submit" ${createDisabled ? 'disabled' : ''}>${createDisabled ? 'Loading adapters…' : 'Create session'}</button>
         </form>
       </section>
 
@@ -280,16 +286,24 @@ function renderDashboard() {
   views.dashboard.querySelector('#new-session-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    const agentId = String(formData.get('agentId') || '');
+    if (!agentId) {
+      state.createSessionError = 'Wait for adapter readiness to load before creating a session.';
+      announce(state.createSessionError);
+      renderDashboard();
+      return;
+    }
     const extraDirectories = String(formData.get('extraDirectories') || '')
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
     try {
+      state.createSessionError = '';
       const detail = await api('/api/sessions', {
         method: 'POST',
         headers: { 'x-idempotency-key': `create-${Date.now()}` },
         body: JSON.stringify({
-          agentId: formData.get('agentId'),
+          agentId,
           cwd: formData.get('cwd'),
           title: formData.get('title') || '',
           initialPrompt: formData.get('initialPrompt'),
@@ -308,7 +322,9 @@ function renderDashboard() {
       await refreshSessions();
       location.hash = `#/session/${detail.id}`;
     } catch (error) {
-      announce(error instanceof Error ? error.message : String(error));
+      state.createSessionError = error instanceof Error ? error.message : String(error);
+      announce(state.createSessionError);
+      renderDashboard();
     }
   });
 }
