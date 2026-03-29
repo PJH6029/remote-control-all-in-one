@@ -179,6 +179,10 @@ Required request fields:
 - `mode`
 - `executionPolicy`
 
+Validation rules:
+- `cwd` must exist on the machine running the daemon and must be a directory
+- every `extraDirectories` entry must also exist and be a directory
+
 Optional request fields:
 - `title`
 - `extraDirectories`

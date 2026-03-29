@@ -1,6 +1,7 @@
 import type { AgentAdapter, AdapterSessionHandle } from '../adapters/base';
 import { FakeAdapter } from '../adapters/fake';
 import { createBuiltInAdapters } from '../adapters/probes';
+import { stat } from 'node:fs/promises';
 import {
   createSessionSchema,
   executionPolicySchema,
@@ -40,6 +41,21 @@ class EventBus {
 
 function deriveTitle(initialPrompt: string): string {
   return initialPrompt.trim().slice(0, 72) || 'Untitled session';
+}
+
+async function assertDirectoryExists(directoryPath: string, label: string): Promise<void> {
+  let details;
+  try {
+    details = await stat(directoryPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new ApiError(400, 'validation_failed', `${label} does not exist: ${directoryPath}`);
+    }
+    throw error;
+  }
+  if (!details.isDirectory()) {
+    throw new ApiError(400, 'validation_failed', `${label} is not a directory: ${directoryPath}`);
+  }
 }
 
 export class SessionManager {
@@ -126,6 +142,8 @@ export class SessionManager {
 
   async createSession(input: CreateSessionInput, idempotencyKey?: string): Promise<SessionDetail> {
     const parsed = createSessionSchema.parse(input);
+    await assertDirectoryExists(parsed.cwd, 'Working directory');
+    await Promise.all(parsed.extraDirectories.map((directory) => assertDirectoryExists(directory, 'Extra writable directory')));
     if (idempotencyKey) {
       const existingId = this.createIdempotency.get(idempotencyKey);
       if (existingId && this.sessions.has(existingId)) {

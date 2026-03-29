@@ -284,28 +284,32 @@ function renderDashboard() {
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
-    const detail = await api('/api/sessions', {
-      method: 'POST',
-      headers: { 'x-idempotency-key': `create-${Date.now()}` },
-      body: JSON.stringify({
-        agentId: formData.get('agentId'),
-        cwd: formData.get('cwd'),
-        title: formData.get('title') || '',
-        initialPrompt: formData.get('initialPrompt'),
-        mode: formData.get('mode'),
-        executionPolicy: {
-          filesystem: formData.get('filesystem'),
-          network: formData.get('network'),
-          approvals: formData.get('approvals'),
-          writableRoots: extraDirectories,
-        },
-        extraDirectories,
-        adapterOptions: {},
-      }),
-    });
-    state.sessionDetails.set(detail.id, detail);
-    await refreshSessions();
-    location.hash = `#/session/${detail.id}`;
+    try {
+      const detail = await api('/api/sessions', {
+        method: 'POST',
+        headers: { 'x-idempotency-key': `create-${Date.now()}` },
+        body: JSON.stringify({
+          agentId: formData.get('agentId'),
+          cwd: formData.get('cwd'),
+          title: formData.get('title') || '',
+          initialPrompt: formData.get('initialPrompt'),
+          mode: formData.get('mode'),
+          executionPolicy: {
+            filesystem: formData.get('filesystem'),
+            network: formData.get('network'),
+            approvals: formData.get('approvals'),
+            writableRoots: extraDirectories,
+          },
+          extraDirectories,
+          adapterOptions: {},
+        }),
+      });
+      state.sessionDetails.set(detail.id, detail);
+      await refreshSessions();
+      location.hash = `#/session/${detail.id}`;
+    } catch (error) {
+      announce(error instanceof Error ? error.message : String(error));
+    }
   });
 }
 

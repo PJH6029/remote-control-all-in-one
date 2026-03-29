@@ -179,4 +179,31 @@ describe('api', () => {
 
     await app.close();
   });
+
+  it('rejects session creation when the working directory does not exist', async () => {
+    const services = await createApp(getStoragePaths(root));
+    const { app } = services;
+    const auth = await getAuthSession(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/sessions',
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: {
+        agentId: 'codex',
+        cwd: path.join(root, 'missing-directory'),
+        title: '',
+        initialPrompt: 'print list of files',
+        mode: 'build',
+        executionPolicy: { filesystem: 'workspace-write', network: 'on', approvals: 'on-request', writableRoots: [] },
+        extraDirectories: [],
+        adapterOptions: {},
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error?.message).toContain('Working directory does not exist');
+
+    await app.close();
+  });
 });
