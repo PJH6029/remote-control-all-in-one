@@ -5,6 +5,7 @@ import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import type { AgentAdapter } from '../adapters/base';
 import { buildDoctorReport } from '../core/doctor';
 import { loadConfig, saveConfig } from '../core/config';
 import { AuthManager } from '../core/auth';
@@ -30,6 +31,17 @@ export interface AppServices {
   sessionManager: SessionManager;
   uptimeStartedAt: number;
 }
+
+type ReadinessAgent = {
+  probe: Awaited<ReturnType<AgentAdapter['probe']>>;
+  capabilities: ReturnType<AgentAdapter['capability']>;
+  optionSchema: Awaited<ReturnType<AgentAdapter['optionSchema']>>;
+};
+
+type ReadinessSnapshot = {
+  agents: ReadinessAgent[];
+  doctor: Awaited<ReturnType<typeof buildDoctorReport>>;
+};
 
 function mergeSettings(current: AppConfig, patch: Record<string, unknown>): { config: AppConfig; restartRequired: boolean; reasons: string[] } {
   const next = structuredClone(current);
@@ -95,8 +107,8 @@ export async function createApp(paths = getStoragePaths()): Promise<AppServices>
   await app.register(cookie, { secret: 'rcaio-dev-secret' });
   await app.register(websocket);
 
-  let readinessPromise: Promise<{ agents: Array<{ probe: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['probe']>>; capabilities: ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['capability']>; optionSchema: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['optionSchema']>> }>; doctor: Awaited<ReturnType<typeof buildDoctorReport>> }> | null = null;
-  let readinessCache: { expiresAt: number; data: { agents: Array<{ probe: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['probe']>>; capabilities: ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['capability']>; optionSchema: Awaited<ReturnType<ReturnType<typeof sessionManager.listAdapters>[number]['optionSchema']>> }>; doctor: Awaited<ReturnType<typeof buildDoctorReport>> } } | null = null;
+  let readinessPromise: Promise<ReadinessSnapshot> | null = null;
+  let readinessCache: { expiresAt: number; data: ReadinessSnapshot } | null = null;
 
   async function loadReadiness(force = false) {
     const now = Date.now();
