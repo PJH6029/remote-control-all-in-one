@@ -119,6 +119,14 @@ You can override the storage root with:
 CODEX_EVERYWHERE_ROOT=/path/to/root
 ```
 
+If the daemon cannot find Codex from its runtime environment, you can also set:
+
+```bash
+CODEX_EVERYWHERE_CODEX_PATH=/absolute/path/to/codex
+```
+
+or persist the same value under `agents.codex.binaryPath` in the config file.
+
 ## Repo map
 
 - `src/adapters/` — adapter implementations

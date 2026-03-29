@@ -73,11 +73,13 @@ Environment overrides are optional and may support keys such as:
 - `CODEX_EVERYWHERE_PORT`
 - `CODEX_EVERYWHERE_OPEN_BROWSER`
 - `CODEX_EVERYWHERE_AUTH_MODE`
+- `CODEX_EVERYWHERE_CODEX_PATH`
 
 Rules:
 - config file remains the durable source of truth
 - env-provided secrets are not persisted unless explicitly requested
 - runtime validation still applies after overrides are merged
+- agent-specific config buckets may include a `binaryPath` override when the daemon environment cannot resolve a CLI from `PATH`
 
 ## 5. Settings Mutability
 

@@ -7,6 +7,7 @@ import { buildDoctorReport } from '../core/doctor';
 import { loadConfig } from '../core/config';
 import { ensureStoragePaths, getStoragePaths, readTextIfExists, removeIfExists } from '../core/storage';
 import { writeDaemonRuntime } from '../core/event-store';
+import { buildSpawnEnv } from '../adapters/command-path';
 
 function getSetCookies(response: Response): string[] {
   const headers = response.headers as Headers & { getSetCookie?: () => string[] };
@@ -78,9 +79,11 @@ async function startDaemon() {
   }
 
   const tsxPath = path.join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  const env = await buildSpawnEnv();
   const child = spawn(process.execPath, [tsxPath, 'src/cli/index.ts', 'internal-daemon'], {
     cwd: process.cwd(),
     detached: true,
+    env,
     stdio: 'ignore',
   });
   child.unref();

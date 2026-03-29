@@ -31,4 +31,21 @@ describe('config', () => {
     const reloaded = await loadConfig(paths);
     expect(reloaded.server.port).toBe(9999);
   });
+
+  it('applies the CODEX_EVERYWHERE_CODEX_PATH env override without rewriting the config file', async () => {
+    const paths = getStoragePaths(root);
+    await ensureStoragePaths(paths);
+    await loadConfig(paths);
+
+    process.env.CODEX_EVERYWHERE_CODEX_PATH = '/tmp/custom-codex';
+    try {
+      const config = await loadConfig(paths);
+      expect(config.agents.codex.binaryPath).toBe('/tmp/custom-codex');
+    } finally {
+      delete process.env.CODEX_EVERYWHERE_CODEX_PATH;
+    }
+
+    const persisted = await loadConfig(paths);
+    expect(persisted.agents.codex.binaryPath).toBeUndefined();
+  });
 });

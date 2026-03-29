@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { type AdapterCapability, type AdapterProbeResult, type CreateSessionInput, type ExecutionPolicy, type PendingAction } from '../shared/contracts';
 import { ApiError } from '../shared/errors';
 import type { AgentAdapter, AdapterCreateContext, AdapterResumeInput, AdapterSessionHandle, PendingResolution } from './base';
+import { buildSpawnEnv, resolveCommandBinary } from './command-path';
 
 const execFileAsync = promisify(execFile);
 
@@ -38,36 +39,11 @@ function configArgs(policy: ExecutionPolicy): string[] {
   return args;
 }
 
-async function probeCodexBinary(): Promise<AdapterProbeResult> {
-  try {
-    const { stdout } = await execFileAsync('which', ['codex']);
-    const which = stdout.trim() || null;
-    if (!which) {
-      return {
-        agentId: 'codex',
-        installed: false,
-        binaryPath: null,
-        version: null,
-        authenticated: null,
-        tmuxAvailable: false,
-        status: 'blocked',
-        summary: 'Codex CLI is not installed.',
-        details: ['Install the Codex CLI to enable this adapter.'],
-      };
-    }
-    const version = (await execFileAsync('codex', ['--version']).catch(() => ({ stdout: '' }))).stdout.trim() || null;
-    return {
-      agentId: 'codex',
-      installed: true,
-      binaryPath: which,
-      version,
-      authenticated: null,
-      tmuxAvailable: false,
-      status: 'healthy',
-      summary: 'Codex CLI is installed.',
-      details: ['Uses headless exec/resume JSON transport in this product.'],
-    };
-  } catch {
+async function probeCodexBinary(configuredPath?: string | null): Promise<AdapterProbeResult> {
+  const binaryPath = await resolveCommandBinary('codex', configuredPath == null
+    ? { envVarNames: ['CODEX_EVERYWHERE_CODEX_PATH', 'CODEX_PATH'] }
+    : { configuredPath, envVarNames: ['CODEX_EVERYWHERE_CODEX_PATH', 'CODEX_PATH'] });
+  if (!binaryPath) {
     return {
       agentId: 'codex',
       installed: false,
@@ -76,10 +52,23 @@ async function probeCodexBinary(): Promise<AdapterProbeResult> {
       authenticated: null,
       tmuxAvailable: false,
       status: 'blocked',
-      summary: 'Codex CLI is not installed.',
-      details: ['Install the Codex CLI to enable this adapter.'],
+      summary: 'Codex CLI is not installed or could not be resolved from the daemon environment.',
+      details: ['Install Codex on PATH or set agents.codex.binaryPath / CODEX_EVERYWHERE_CODEX_PATH.'],
     };
   }
+
+  const version = (await execFileAsync(binaryPath, ['--version'], { env: await buildSpawnEnv() }).catch(() => ({ stdout: '' }))).stdout.trim() || null;
+  return {
+    agentId: 'codex',
+    installed: true,
+    binaryPath,
+    version,
+    authenticated: null,
+    tmuxAvailable: false,
+    status: 'healthy',
+    summary: 'Codex CLI is installed.',
+    details: ['Uses headless exec/resume JSON transport in this product.'],
+  };
 }
 
 class CodexSessionHandle implements AdapterSessionHandle {
@@ -89,8 +78,13 @@ class CodexSessionHandle implements AdapterSessionHandle {
   private mode: 'build' | 'plan';
   private executionPolicy: ExecutionPolicy;
   private readonly extraDirectories = new Set<string>();
+  private spawnFailed = false;
 
-  constructor(private readonly context: AdapterCreateContext, input?: CreateSessionInput) {
+  constructor(
+    private readonly context: AdapterCreateContext,
+    private readonly commandPath: string,
+    input?: CreateSessionInput,
+  ) {
     this.threadId = this.context.session.adapterState?.vendorSessionId as string | undefined;
     this.mode = this.context.session.mode;
     this.executionPolicy = this.context.session.executionPolicy;
@@ -122,9 +116,9 @@ class CodexSessionHandle implements AdapterSessionHandle {
       }
     }
 
-    const child = spawn('codex', args, {
+    const child = spawn(this.commandPath, args, {
       cwd: this.context.session.cwd,
-      env: process.env,
+      env: await buildSpawnEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     if (!child.stdout || !child.stderr) throw new Error('Codex process streams are unavailable.');
@@ -154,7 +148,7 @@ class CodexSessionHandle implements AdapterSessionHandle {
             data: { channel: 'final', text: assistantParts.join('\n\n') },
           });
         }
-        if (code && code !== 0) {
+        if (!this.spawnFailed && code && code !== 0) {
           await this.context.emit({
             type: 'session.error',
             source: { adapterId: 'codex', vendorEventType: 'process.exit' },
@@ -164,6 +158,7 @@ class CodexSessionHandle implements AdapterSessionHandle {
       })();
     });
     child.on('error', (error) => {
+      this.spawnFailed = true;
       void this.context.emit({
         type: 'session.error',
         source: { adapterId: 'codex', vendorEventType: 'spawn.error' },
@@ -248,6 +243,11 @@ class CodexSessionHandle implements AdapterSessionHandle {
 export class CodexAdapter implements AgentAdapter {
   readonly id = 'codex';
   readonly displayName = 'Codex';
+  private readonly configuredPath: string | null;
+
+  constructor(settings: Record<string, unknown> = {}) {
+    this.configuredPath = typeof settings.binaryPath === 'string' ? settings.binaryPath : null;
+  }
 
   capability(): AdapterCapability {
     return {
@@ -272,7 +272,7 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   probe(): Promise<AdapterProbeResult> {
-    return probeCodexBinary();
+    return probeCodexBinary(this.configuredPath);
   }
 
   async optionSchema(): Promise<Record<string, unknown>> {
@@ -289,12 +289,20 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   async createSession(input: CreateSessionInput, context: AdapterCreateContext): Promise<AdapterSessionHandle> {
-    const handle = new CodexSessionHandle(context, input);
+    const binaryPath = await resolveCommandBinary('codex', this.configuredPath == null
+      ? { envVarNames: ['CODEX_EVERYWHERE_CODEX_PATH', 'CODEX_PATH'] }
+      : { configuredPath: this.configuredPath, envVarNames: ['CODEX_EVERYWHERE_CODEX_PATH', 'CODEX_PATH'] });
+    if (!binaryPath) throw new ApiError(409, 'adapter_not_available', 'Codex CLI is not installed or could not be resolved. Configure agents.codex.binaryPath or CODEX_EVERYWHERE_CODEX_PATH.');
+    const handle = new CodexSessionHandle(context, binaryPath, input);
     void handle.start(input.initialPrompt, false);
     return handle;
   }
 
   async resumeSession(input: AdapterResumeInput, context: AdapterCreateContext): Promise<AdapterSessionHandle> {
-    return new CodexSessionHandle({ ...context, session: input.session });
+    const binaryPath = await resolveCommandBinary('codex', this.configuredPath == null
+      ? { envVarNames: ['CODEX_EVERYWHERE_CODEX_PATH', 'CODEX_PATH'] }
+      : { configuredPath: this.configuredPath, envVarNames: ['CODEX_EVERYWHERE_CODEX_PATH', 'CODEX_PATH'] });
+    if (!binaryPath) throw new ApiError(409, 'adapter_not_available', 'Codex CLI is not installed or could not be resolved. Configure agents.codex.binaryPath or CODEX_EVERYWHERE_CODEX_PATH.');
+    return new CodexSessionHandle({ ...context, session: input.session }, binaryPath);
   }
 }

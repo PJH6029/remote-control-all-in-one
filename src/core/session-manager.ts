@@ -51,7 +51,11 @@ export class SessionManager {
   private readonly createIdempotency = new Map<string, string>();
 
   constructor(private readonly config: AppConfig, private readonly paths: StoragePaths) {
-    const allAdapters = [new FakeAdapter(), ...createBuiltInAdapters()];
+    const allAdapters = [new FakeAdapter(), ...createBuiltInAdapters({
+      codex: this.config.agents.codex,
+      claude: this.config.agents.claude,
+      opencode: this.config.agents.opencode,
+    })];
     for (const adapter of allAdapters) this.adapters.set(adapter.id, adapter);
   }
 

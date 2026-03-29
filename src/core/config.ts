@@ -50,6 +50,9 @@ function applyEnvOverrides(config: AppConfig): AppConfig {
   if (process.env.CODEX_EVERYWHERE_AUTH_MODE === 'local-session' || process.env.CODEX_EVERYWHERE_AUTH_MODE === 'password') {
     next.server.authMode = process.env.CODEX_EVERYWHERE_AUTH_MODE;
   }
+  if (process.env.CODEX_EVERYWHERE_CODEX_PATH) {
+    next.agents.codex = { ...next.agents.codex, binaryPath: process.env.CODEX_EVERYWHERE_CODEX_PATH };
+  }
   return configSchema.parse(next);
 }
 
