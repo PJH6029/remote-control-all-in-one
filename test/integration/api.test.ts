@@ -86,4 +86,97 @@ describe('api', () => {
 
     await app.close();
   });
+
+  it('exposes distinct fake plan-request options and resolves accept', async () => {
+    const services = await createApp(getStoragePaths(root));
+    const { app } = services;
+    const auth = await getAuthSession(app);
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/sessions',
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: {
+        agentId: 'fake',
+        cwd: root,
+        title: '',
+        initialPrompt: 'hello world',
+        mode: 'plan',
+        executionPolicy: { filesystem: 'read-only', network: 'off', approvals: 'on-request', writableRoots: [] },
+        extraDirectories: [],
+        adapterOptions: {},
+      },
+    });
+    const detail = createResponse.json().data;
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/sessions/${detail.id}/messages`,
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: { text: 'need plan', clientMessageId: 'msg_plan_accept' },
+    });
+
+    const detailResponse = await app.inject({ method: 'GET', url: `/api/sessions/${detail.id}`, headers: { cookie: auth.cookieHeader } });
+    const updated = detailResponse.json().data;
+    const pending = updated.pendingActions.find((entry: { status: string; type: string }) => entry.status === 'open' && entry.type === 'plan');
+    expect(pending).toBeTruthy();
+    if (!pending) throw new Error('Expected a plan pending action.');
+    expect(pending.options.map((option: { id: string }) => option.id)).toEqual(['accept', 'stay_in_plan']);
+
+    const resolveResponse = await app.inject({
+      method: 'POST',
+      url: `/api/sessions/${detail.id}/pending/${pending.id}/resolve`,
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: { resolution: { optionId: 'accept' } },
+    });
+    expect(resolveResponse.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it('resolves a fake plan request with stay_in_plan', async () => {
+    const services = await createApp(getStoragePaths(root));
+    const { app } = services;
+    const auth = await getAuthSession(app);
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/sessions',
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: {
+        agentId: 'fake',
+        cwd: root,
+        title: '',
+        initialPrompt: 'hello world',
+        mode: 'plan',
+        executionPolicy: { filesystem: 'read-only', network: 'off', approvals: 'on-request', writableRoots: [] },
+        extraDirectories: [],
+        adapterOptions: {},
+      },
+    });
+    const detail = createResponse.json().data;
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/sessions/${detail.id}/messages`,
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: { text: 'need plan', clientMessageId: 'msg_plan_stay' },
+    });
+
+    const detailResponse = await app.inject({ method: 'GET', url: `/api/sessions/${detail.id}`, headers: { cookie: auth.cookieHeader } });
+    const updated = detailResponse.json().data;
+    const pending = updated.pendingActions.find((entry: { status: string; type: string }) => entry.status === 'open' && entry.type === 'plan');
+    expect(pending).toBeTruthy();
+    if (!pending) throw new Error('Expected a plan pending action.');
+
+    const resolveResponse = await app.inject({
+      method: 'POST',
+      url: `/api/sessions/${detail.id}/pending/${pending.id}/resolve`,
+      headers: { cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfToken },
+      payload: { resolution: { optionId: 'stay_in_plan' } },
+    });
+    expect(resolveResponse.statusCode).toBe(200);
+
+    await app.close();
+  });
 });

@@ -482,6 +482,15 @@ function renderWorkspace(sessionId) {
 function renderSettings() {
   show('settings');
   const settings = state.settings;
+  if (!settings) {
+    views.settings.innerHTML = `
+      <section class="card">
+        <h2>Settings</h2>
+        <p class="muted">Loading settings…</p>
+      </section>
+    `;
+    return;
+  }
   views.settings.innerHTML = `
     <section class="card">
       <h2>Settings</h2>
@@ -546,6 +555,15 @@ function renderSettings() {
 function renderDoctor() {
   show('doctor');
   const doctor = state.doctor;
+  if (!doctor) {
+    views.doctor.innerHTML = `
+      <section class="card">
+        <h2>Doctor</h2>
+        <p class="muted">Loading operational readiness…</p>
+      </section>
+    `;
+    return;
+  }
   views.doctor.innerHTML = `
     <section class="card">
       <div class="row-between wrap-gap">

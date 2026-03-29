@@ -45,3 +45,11 @@ test('session transcript survives browser reload without duplicate messages', as
   const after = await page.locator('.message').count();
   expect(after).toBe(before);
 });
+
+test('settings and doctor routes render on direct load before hydration completes', async ({ page }) => {
+  await page.goto(`${server.url}#/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+
+  await page.goto(`${server.url}#/doctor`);
+  await expect(page.getByRole('heading', { name: 'Doctor' })).toBeVisible();
+});

@@ -105,7 +105,7 @@ export class FakeAdapter implements AgentAdapter {
     }
 
     if (normalized.includes('plan')) {
-      const pending = this.makePending(context.session.id, 'plan', 'Accept the fake adapter plan?');
+      const pending = this.makePending(context.session.id, 'plan', 'Accept the fake adapter plan or stay in plan mode?');
       await context.emit({
         type: 'plan.requested',
         source: { adapterId: this.id, vendorEventType: 'fake.plan' },
@@ -126,13 +126,23 @@ export class FakeAdapter implements AgentAdapter {
   }
 
   private async resolvePending(context: AdapterCreateContext, pending: PendingAction, resolution: PendingResolution): Promise<void> {
-    const result = resolution.text ? `Resolved ${pending.type} with: ${resolution.text}` : `Resolved ${pending.type} with option ${resolution.optionId}`;
+    const result = pending.type === 'plan'
+      ? resolution.optionId === 'accept'
+        ? 'Resolved plan with option accept'
+        : resolution.optionId === 'stay_in_plan'
+          ? 'Resolved plan with option stay_in_plan'
+          : `Resolved plan with option ${resolution.optionId}`
+      : resolution.text
+        ? `Resolved ${pending.type} with: ${resolution.text}`
+        : `Resolved ${pending.type} with option ${resolution.optionId}`;
     await this.emitAssistant(context, `Continuing after ${pending.type}.`, result);
   }
 
   private makePending(sessionId: string, type: PendingAction['type'], prompt: string): PendingAction {
     const baseOptions = type === 'question'
       ? [{ id: 'submit', label: 'Submit', kind: 'submit' as const }, { id: 'cancel', label: 'Cancel', kind: 'cancel' as const }]
+      : type === 'plan'
+        ? [{ id: 'accept', label: 'Accept', kind: 'allow' as const }, { id: 'stay_in_plan', label: 'Stay in plan', kind: 'deny' as const }]
       : [{ id: 'allow', label: 'Allow', kind: 'allow' as const }, { id: 'deny', label: 'Deny', kind: 'deny' as const }];
 
     return {
